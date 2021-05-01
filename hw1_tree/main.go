@@ -3,10 +3,9 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/fs"
-	"io/ioutil"
 	"os"
-	"path/filepath"
+	"sort"
+	"strings"
 )
 
 func main() {
@@ -23,14 +22,21 @@ func main() {
 }
 
 func dirTreeWithPrefix(out io.Writer, path string, printFiles bool, prefix string) error {
-	files, err := ioutil.ReadDir(path)
+	files, err := os.ReadDir(path)
 	if !printFiles {
-		var dirs []fs.FileInfo
+		var dirs []os.DirEntry
 		for _, f := range files {
 			if f.IsDir() {
 				dirs = append(dirs, f)
 			}
 		}
+		sort.Slice(dirs, func(i, j int) bool {
+			if strings.Compare(dirs[i].Name(),dirs[j].Name()) > 0 {
+				return false
+			} else {
+				return true
+			}
+		})
 		files = dirs
 	}
 	for i, q := range files {
@@ -43,11 +49,11 @@ func dirTreeWithPrefix(out io.Writer, path string, printFiles bool, prefix strin
 			currPrefix += "├───"
 			newPrefix += "│\t"
 		}
-		nextDir := filepath.Join(path, q.Name())
+		nextDir := path + string(os.PathSeparator) + q.Name()
 		size := ""
 		if !q.IsDir() {
-			if q.Size() != 0 {
-				size = fmt.Sprintf(" (%db)", q.Size())
+			if info, _ := q.Info(); info.Size() != 0 {
+				size = fmt.Sprintf(" (%db)", info.Size())
 			} else {
 				size = " (empty)"
 			}
