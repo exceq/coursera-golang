@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
@@ -20,45 +21,57 @@ func main() {
 		panic(err.Error())
 	}
 }
+func removeFiles(files []os.FileInfo) []os.FileInfo {
+	var dirs []os.FileInfo
+	for _, f := range files {
+		if f.IsDir() {
+			dirs = append(dirs, f)
+		}
+	}
+	sort.Slice(dirs, func(i, j int) bool {
+		if strings.Compare(dirs[i].Name(), dirs[j].Name()) > 0 {
+			return false
+		} else {
+			return true
+		}
+	})
+	return dirs
+}
+
+func getStrSize(q os.FileInfo) string {
+	if !q.IsDir() {
+		if sz := q.Size(); sz != 0 {
+			return fmt.Sprintf(" (%db)", sz)
+		} else {
+			return " (empty)"
+		}
+	} else {
+		return ""
+	}
+}
+
+func updatePrefixes(prefix string, endLine bool) (string, string) {
+	currPrefix := prefix
+	newPrefix := prefix
+	if endLine {
+		currPrefix += "└───"
+		newPrefix += "\t"
+	} else {
+		currPrefix += "├───"
+		newPrefix += "│\t"
+	}
+	return currPrefix, newPrefix
+}
 
 func dirTreeWithPrefix(out io.Writer, path string, printFiles bool, prefix string) error {
-	files, err := os.ReadDir(path)
+	files, err := ioutil.ReadDir(path)
 	if !printFiles {
-		var dirs []os.DirEntry
-		for _, f := range files {
-			if f.IsDir() {
-				dirs = append(dirs, f)
-			}
-		}
-		sort.Slice(dirs, func(i, j int) bool {
-			if strings.Compare(dirs[i].Name(),dirs[j].Name()) > 0 {
-				return false
-			} else {
-				return true
-			}
-		})
-		files = dirs
+		files = removeFiles(files)
 	}
 	for i, q := range files {
-		currPrefix := prefix
-		newPrefix := prefix
-		if i == len(files)-1 {
-			currPrefix += "└───"
-			newPrefix += "\t"
-		} else {
-			currPrefix += "├───"
-			newPrefix += "│\t"
-		}
+		currPrefix, newPrefix := updatePrefixes(prefix, i == len(files)-1)
 		nextDir := path + string(os.PathSeparator) + q.Name()
-		size := ""
-		if !q.IsDir() {
-			if info, _ := q.Info(); info.Size() != 0 {
-				size = fmt.Sprintf(" (%db)", info.Size())
-			} else {
-				size = " (empty)"
-			}
-		}
-		_, err = fmt.Fprint(out, fmt.Sprintf("%s%s%s\n", currPrefix, q.Name(), size))
+		_, err = fmt.Fprint(out, fmt.Sprintf("%s%s%s\n", currPrefix, q.Name(), getStrSize(q)))
 		if err != nil {
 			return err
 		}
